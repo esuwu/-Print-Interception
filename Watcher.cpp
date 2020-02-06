@@ -6,7 +6,7 @@ using std::cout;
 using std::cin;
 using std::endl;
 
-Watcher::Watcher(const string & _DirToWatch, threadSafe_queue & _queue) : queue(_queue), DirToWatch(_DirToWatch), CountCreatingFiles(0){
+Watcher::Watcher(const string & _DirToWatch, ThreadSafeQueue & _queue) : queue(_queue), DirToWatch(_DirToWatch), CountCreatingFiles(0){
     fd = inotify_init();
     wd = inotify_add_watch(fd, DirToWatch.c_str(), IN_CREATE);
 }
@@ -20,7 +20,7 @@ void Watcher::Watch(){
     std::cout << "Watching :: " << DirToWatch << endl;
 
     while(true) {
-        int length = read(fd, buffer, BUF_LEN);
+        int length = read(fd, buffer, bufLen);
         if (length < 0) throw("read error");
 
         int i = 0;
@@ -33,12 +33,11 @@ void Watcher::Watch(){
                     else{
                         cout << "The file " << event->name << " was created with WD " << event->wd << endl;
                         FileToParse = event->name;
-                        cout << "FileToParse is " << FileToParse << endl;
                         GetFilePath();
                     }
 
                 }
-                i += EVENT_SIZE + event->len;
+                i += eventSize + event->len;
             }
         }
     }
@@ -53,11 +52,7 @@ string Watcher::GetFilePath() {
             }
             clear_string.push_back(it);
         }
-        cout << "clear string is " << clear_string << endl;
-        cout << "queue is " << DirToWatch +  "/" + clear_string << endl;
-
-        queue.push(DirToWatch + "/" + clear_string);
-
+        queue.Push(DirToWatch + "/" + clear_string);
         return clear_string;
     }
     return "";

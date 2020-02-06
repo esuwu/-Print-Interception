@@ -10,7 +10,7 @@
 
 class Parser{
 public:
-    Parser(threadSafe_queue & _queue);
+    Parser(std::string _file_to_write, ThreadSafeQueue & _queue);
     ~Parser() = default;
     void StartParse();
 
@@ -18,12 +18,13 @@ private:
     int Parse();
     std::string GetNameFile();
     void WriteParseDataToFile();
-    std::string FileToWrite;
-    std::string FileToParse;
-    std::unordered_map<std::string, std::string> my_map;
-    std::string TmpKey;
-    std::string TmpValue;
-    threadSafe_queue & queue;
+    std::string fileToWrite;
+    std::string fileToParse;
+    std::unordered_map<std::string, std::string> myMap;
+    std::string tmpKey;
+    std::string tmpValue;
+    std::string pathToCups;
+    ThreadSafeQueue & queue;
     void CopyDFile();
 
 };

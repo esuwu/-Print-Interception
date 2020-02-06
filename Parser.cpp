@@ -1,9 +1,7 @@
 
 #include "Parser.h"
 #include <sys/stat.h>
-
-#define FILE_TO_WRITE "/var/spool/DataFromPrinters"
-#define PATH_TO_CUPS "/var/spool/cups"
+#include <exception>
 
 using std::string;
 using std::cout;
@@ -15,70 +13,82 @@ using std::istreambuf_iterator;
 
 void Parser::StartParse(){
     while(true){
-        FileToParse = queue.retrieve_and_delete();
-        if(FileToParse.size() != 0){
-            Parse();
+        fileToParse = queue.RetrieveAndDelete();
+        if(fileToParse.size() != 0){
+            try{
+                Parse();
+            }
+            catch (std::exception &e)
+            {
+                //std::cout << e.what() << std::endl;
+            }
         }
     }
 }
 
-Parser::Parser(threadSafe_queue & _queue) : queue(_queue), FileToWrite(FILE_TO_WRITE) {
+Parser::Parser(string _file_to_write, ThreadSafeQueue & _queue) : queue(_queue), pathToCups("/var/spool/cups"), fileToWrite(_file_to_write) {
 
 }
 
 int Parser::Parse() {
-    chmod(PATH_TO_CUPS, S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
-    chmod(FileToParse.c_str(), S_IRUSR|S_IRGRP|S_IROTH);
+    chmod(pathToCups.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
+    chmod(fileToParse.c_str(), S_IRUSR|S_IRGRP|S_IROTH);
 
-    ifstream file(FileToParse);
+    ifstream file(fileToParse);
     if (!file.is_open()){
-//        cout << "File was not opened" << endl;
-//        return -1;
+        throw std::runtime_error("file opening failed");
     }
+
     string data_from_file ((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-    bool was_byte_0x00_read = false;
-    int count_of_next_symbols = 0;
-    bool was_word_read = false;
-    auto it = my_map.begin();
-    /*Первые 7 байт не интересуют*/
-    int useless_bytes = 7;
+    bool was_byte_key_read = false;
+    auto it = myMap.begin();
+    auto iter_file = data_from_file.begin() + 8; //  Первые 8 байт не интересуют
+    int is_begin_tags = 0;
+    int value_length = 0;
 
-    for(auto it : data_from_file){
-        if(useless_bytes > 0){
-            useless_bytes--;
+    for(iter_file; iter_file != data_from_file.end(); iter_file++) {
+        if ( *iter_file > 0 and*iter_file < 15 and *iter_file != 3) { // до 15 begin-attribute-group-tag
+            is_begin_tags++;
+            iter_file++;
+        }
+        if (*iter_file == 3) { //  3 - end of attribute group
+            is_begin_tags--;
             continue;
         }
-        if((int)it == 0){
-            was_byte_0x00_read = true;
-            continue;
+        if (*iter_file > 15) { // после 15 value tag
+            iter_file++;
         }
-        if(was_byte_0x00_read == true){
-            count_of_next_symbols = (int)it;
-            was_byte_0x00_read = false;
-            continue;
-        }
-        if(count_of_next_symbols != 0 and !was_word_read){
-            TmpKey.push_back(it);
-            count_of_next_symbols--;
-            if(count_of_next_symbols == 0 ){
-                was_word_read = true;
-                continue;
 
+        value_length = (((int) *iter_file) << 8) + (int) (*(++iter_file));
+        iter_file++;
+        if (value_length > 0 and !was_byte_key_read) {
+                myMap[tmpKey] = tmpValue;
+                tmpKey.clear();
+                tmpValue.clear();
+            for (int i = 0; i < value_length; i++) {
+                tmpKey.push_back(*iter_file);
+                if(i < value_length - 1){
+                    iter_file++;
+                }
             }
-        }
-        if(count_of_next_symbols != 0 and was_word_read){
-            TmpValue.push_back(it);
-            count_of_next_symbols--;
-            if(count_of_next_symbols == 0 ){
-                was_word_read = false;
-                my_map[TmpKey] = TmpValue;
-                TmpKey.clear();
-                TmpValue.clear();
-                continue;
+            was_byte_key_read = true;
+        } else {
+            was_byte_key_read = false;
+            if (value_length == 0 and !tmpValue.empty()) {
+                value_length = (((int) *iter_file) << 8) + (int) (*(++iter_file));
+                iter_file++;
+                tmpValue.push_back(' ');
+            }
+            for (int i = 0; i < value_length; i++) {
+                tmpValue.push_back(*iter_file);
+                if(i < value_length - 1){
+                    iter_file++;
+                }
             }
         }
 
     }
+    myMap[tmpKey] = tmpValue;
 
     file.close();
     WriteParseDataToFile();
@@ -87,30 +97,38 @@ int Parser::Parse() {
 }
 
 void Parser::WriteParseDataToFile(){
-    string tmp_string = FILE_TO_WRITE;
+    string tmp_string = fileToWrite;
     tmp_string += "/";
     tmp_string += GetNameFile();
     chmod(tmp_string.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
+
+    ifstream my_file (tmp_string);
+    long begin = my_file.tellg();
+    my_file.seekg (0, std::ios::end);
+    long end = my_file.tellg();
+    if((end - begin) > 0) {
+        my_file.close();
+        return;
+    }
     ofstream outfile(tmp_string);
-    for (auto it : my_map)
+    for (auto it : myMap)
         outfile << it.first << "   " << it.second << endl;
-
-
     CopyDFile();
     outfile.close();
+    myMap.clear();
+    cout << "Data was successfully recorded" << endl;
 }
 
 string Parser::GetNameFile(){
     int count = 0;
     std::string NameFile;
-    for(auto it : FileToParse){
+    for(auto it : fileToParse){
         if(count == 4){
             NameFile.push_back(it);
         }
         if(it == '/'){
             count++;
         }
-
     }
     return NameFile;
 }
@@ -120,16 +138,14 @@ void Parser::CopyDFile(){
     d_file[0] = 'd';
     d_file += "-001";
 
-    string path_to_d_file = string(PATH_TO_CUPS) + string("/") + d_file;
+    string path_to_d_file = pathToCups + string("/") + d_file;
 
     chmod(path_to_d_file.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
     ifstream file_in(path_to_d_file, std::ios::binary);
-    string out_d_file = string(FILE_TO_WRITE) + string("/") + d_file;
+    string out_d_file = fileToWrite + string("/") + d_file;
     chmod(out_d_file.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
     ofstream file_out(out_d_file, std::ios::binary);
     file_out << file_in.rdbuf();
-
     file_out.close();
     file_in.close();
-
 }

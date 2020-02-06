@@ -3,17 +3,22 @@
 
 using std::string;
 
-string & threadSafe_queue::retrieve_and_delete(){
+ThreadSafeQueue::ThreadSafeQueue() : frontValue("") {
 
-    std::lock_guard<std::mutex> lg(m);
-    if( !rawQueue.empty() ) {
-        front_value = rawQueue.front();
-        rawQueue.pop();
-    }
-    return front_value;
 }
 
-void threadSafe_queue::push(std::string val){
+string & ThreadSafeQueue::RetrieveAndDelete(){
+    static string tmp = "";
+    std::lock_guard<std::mutex> lg(m);
+    if( !rawQueue.empty() ) {
+        frontValue = rawQueue.front();
+        rawQueue.pop();
+    }
+    return frontValue;
+}
+
+void ThreadSafeQueue::Push(std::string val){
     std::lock_guard<std::mutex> lg(m);
     rawQueue.push(val);
 }
+

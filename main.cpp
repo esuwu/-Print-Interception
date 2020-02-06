@@ -2,18 +2,13 @@
 #include "Parser.h"
 #include <thread>
 
-
-
-
-
 int main() {
-    threadSafe_queue queue;
+    ThreadSafeQueue queue;
     Watcher watcher("/var/spool/cups", queue);
-    Parser parser(queue);
+    Parser parser("/var/spool/DataFromPrinters", queue);
 
     std::thread first([&watcher](){ watcher.Watch(); });
     std::thread second([&parser](){ parser.StartParse(); });
-
 
     first.join();
     second.join();

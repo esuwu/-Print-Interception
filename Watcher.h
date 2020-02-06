@@ -10,29 +10,29 @@
 #include <sys/inotify.h>
 #include <unistd.h>
 #include "ThreadSaveQueue.h"
+#include <queue>
 
 
-#define MAX_EVENTS 1024
-#define LEN_NAME 16
-#define EVENT_SIZE  (sizeof (struct inotify_event))
-#define BUF_LEN     (MAX_EVENTS * ( EVENT_SIZE + LEN_NAME))
-
-
+constexpr int maxEvents = 1024;
+constexpr int  lenName = 16;
+constexpr int  eventSize = sizeof (struct inotify_event);
+constexpr int bufLen = maxEvents * ( eventSize + lenName);
 
 class Watcher{
 public:
-    Watcher(const std::string & _DirToWatch, threadSafe_queue & _queue);
+    Watcher(const std::string & _DirToWatch, ThreadSafeQueue & _queue);
     ~Watcher();
     void Watch();
 private:
+
     std::string GetFilePath();
     const std::string DirToWatch;
     int wd;
     int fd;
-    char buffer[BUF_LEN];
+    char buffer[bufLen];
     std::string FileToParse;
     int CountCreatingFiles;
-    threadSafe_queue & queue;
+    ThreadSafeQueue & queue;
 };
 
 
