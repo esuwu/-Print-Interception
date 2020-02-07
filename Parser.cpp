@@ -1,7 +1,8 @@
 
 #include "Parser.h"
 #include <sys/stat.h>
-#include <exception>
+#include <experimental/filesystem>
+#include <unistd.h>
 
 using std::string;
 using std::cout;
@@ -10,18 +11,13 @@ using std::unordered_map;
 using std::ofstream;
 using std::ifstream;
 using std::istreambuf_iterator;
+namespace fs = std::experimental::filesystem;
 
 void Parser::StartParse(){
     while(true){
         fileToParse = queue.RetrieveAndDelete();
         if(fileToParse.size() != 0){
-            try{
-                Parse();
-            }
-            catch (std::exception &e)
-            {
-                //std::cout << e.what() << std::endl;
-            }
+            Parse();
         }
     }
 }
@@ -36,7 +32,8 @@ int Parser::Parse() {
 
     ifstream file(fileToParse);
     if (!file.is_open()){
-        throw std::runtime_error("file opening failed");
+        std::cerr << "File was not opened" << std::endl;
+        return -1;
     }
 
     string data_from_file ((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
@@ -138,9 +135,23 @@ void Parser::CopyDFile(){
     d_file[0] = 'd';
     d_file += "-001";
 
-    string path_to_d_file = pathToCups + string("/") + d_file;
 
+
+    string path_to_d_file = pathToCups + string("/") + d_file;
     chmod(path_to_d_file.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);
+
+    fs::path p{path_to_d_file};
+    p = fs::canonical(p);
+    long size = fs::file_size(p);
+    long new_size = 0;
+    for(int i = 0; i < 60; i++){ // минуту ждем и смотрим не изменился ли размер файла
+        sleep(1);
+        new_size = fs::file_size(p);
+        if(size != new_size){
+            i = 0; // если размер изменился, заново начинаем ждать минуту
+        }
+    }
+
     ifstream file_in(path_to_d_file, std::ios::binary);
     string out_d_file = fileToWrite + string("/") + d_file;
     chmod(out_d_file.c_str(), S_IRWXU | S_IXGRP | S_IWGRP | S_IRGRP | S_IXOTH | S_IWOTH | S_IROTH);

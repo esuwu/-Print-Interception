@@ -9,4 +9,4 @@ include_directories(
 
 add_executable(PrinterCheck main.cpp Parser.cpp Watcher.cpp ThreadSaveQueue.cpp)
 
-target_link_libraries(PrinterCheck pthread)
+target_link_libraries(PrinterCheck pthread -lstdc++fs)

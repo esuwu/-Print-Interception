@@ -22,9 +22,9 @@ class Watcher{
 public:
     Watcher(const std::string & _DirToWatch, ThreadSafeQueue & _queue);
     ~Watcher();
-    void Watch();
+    void StartWatch();
 private:
-
+    void Watch();
     std::string GetFilePath();
     const std::string DirToWatch;
     int wd;

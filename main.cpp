@@ -7,7 +7,7 @@ int main() {
     Watcher watcher("/var/spool/cups", queue);
     Parser parser("/var/spool/DataFromPrinters", queue);
 
-    std::thread first([&watcher](){ watcher.Watch(); });
+    std::thread first([&watcher](){ watcher.StartWatch(); });
     std::thread second([&parser](){ parser.StartParse(); });
 
     first.join();
